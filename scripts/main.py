@@ -335,7 +335,10 @@ class Script(scripts.Script):
     def __init__(self) -> None:
         """Initializes the Script class and sets the default value for enable_translation attribute."""
         super().__init__()
-        self.enable_translation=False
+        self.language="vi_VN"
+        self.is_active=True
+        self.enable_translation=True
+        self.translator = MBartTranslator()
 
     def title(self):
         """Returns the title of the script."""
@@ -353,48 +356,6 @@ class Script(scripts.Script):
             self.translator = MBartTranslator()
         return "ready", self.options.update(visible=True)
 
-
-    def ui(self, is_img2img):
-        """Sets up the user interface of the script."""
-        self.is_active=False
-        self.current_axis_options = [x for x in language_options]
-
-        with gr.Row():
-            with gr.Column(scale=19):
-                with gr.Accordion("Prompt Translator",open=False):
-                    with gr.Accordion("Help",open=False):
-                        md = gr.Markdown("""
-                        # Description
-                        This script translates your prompt from another language to english before generating the image allowing you to write prompts in your native language.
-                        # How to use
-                        Select Enable translation and wait until you the label shows ready.
-                        Once the label has Ready on it, select the prompt language, write the prompt in the prompt field then press generate. The script will translate the prompt and generate the text.
-                        # Note
-                        First time you enable the script, it may take a long time (around a minute), but once loaded, it will be faster.
-                        """)
-                    with gr.Column():
-                        self.enable_translation = gr.Checkbox(label="Enable translation")
-                        with gr.Column() as options:
-                            self.options=options
-                            self.translate_negative_prompt = gr.Checkbox(label="Translate negative prompt")
-                            self.enable_translation.value=False
-                            self.language = gr.Dropdown(
-                                                label="Source language", 
-                                                choices=[x.label for x in self.current_axis_options], 
-                                                value="Français", 
-                                                type="index", 
-                                                elem_id=self.elem_id("x_type")
-                                            )
-                        self.output=gr.Label("After enabling translation, please Wait until I am ready")
-                        self.enable_translation.change(
-                            self.set_active,
-                            [self.enable_translation], 
-                            [self.output, self.options], 
-                            show_progress=True
-                        )
-        self.options.visible=False
-        return [self.language]
-
     def get_prompts(self, p):
         """Returns the original prompts and negative prompts associated with a Prompt object."""
         original_prompts = p.all_prompts if len(p.all_prompts) > 0 else [p.prompt]
@@ -406,7 +367,7 @@ class Script(scripts.Script):
 
         return original_prompts, original_negative_prompts
     
-    def process(self, p, language, **kwargs):
+    def process(self, p, **kwargs):
         """Translates the prompts from a non-English language to English using the MBartTranslator object."""
 
         if hasattr(self, "translator") and self.is_active:
@@ -417,9 +378,9 @@ class Script(scripts.Script):
 
             for original_prompt in original_prompts:
                 if previous_prompt != original_prompt:
-                    print(f"Translating prompt to English from {language_options[language].label}")
+                    print(f"Translating prompt to English from {self.language}")
                     print(f"Initial prompt:{original_prompt}")
-                    ln_code = language_options[language].language_code
+                    ln_code = self.language
                     translated_prompt = self.translator.translate(original_prompt, ln_code, "en_XX")
                     translated_prompt = post_process_prompt(original_prompt, translated_prompt)
                     print(f"Translated prompt:{translated_prompt}")
@@ -431,15 +392,15 @@ class Script(scripts.Script):
                     translated_prompts.append(previous_translated_prompt)
 
 
-            if p.negative_prompt!='' and self.translate_negative_prompt.value:
+            if p.negative_prompt!='':
                 previous_negative_prompt = ""
                 previous_translated_negative_prompt = ""
                 translated_negative_prompts=[]
                 for negative_prompt in original_negative_prompts:
                     if previous_negative_prompt!=negative_prompt:
-                        print(f"Translating negative prompt to English from {language_options[language].label}")
+                        print(f"Translating negative prompt to English from {self.language}")
                         print(f"Initial negative prompt:{negative_prompt}")
-                        ln_code = language_options[language].language_code
+                        ln_code = self.language
                         translated_negative_prompt = self.translator.translate(negative_prompt, ln_code, "en_XX")
                         translated_negative_prompt = post_process_prompt(negative_prompt,translated_negative_prompt)
                         print(f"Translated negative prompt:{translated_negative_prompt}")
